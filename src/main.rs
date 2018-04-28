@@ -1,7 +1,8 @@
+#[macro_use]
 extern crate clap;
 extern crate image;
 
-use clap::*;
+use clap::{App, Arg};
 
 use image::GenericImage;
 use image::Pixel;
