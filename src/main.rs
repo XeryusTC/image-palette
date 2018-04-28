@@ -7,6 +7,14 @@ use image::GenericImage;
 use image::Pixel;
 use std::collections::HashMap;
 
+fn dist(c1: &image::Rgb<u8>, c2: &image::Rgb<u8>) -> u8
+{
+    let d1 = if c1[0] > c2[0] { c1[0] - c2[0] } else { c2[0] - c1[0] } as u64;
+    let d2 = if c1[1] > c2[1] { c1[1] - c2[1] } else { c2[1] - c1[1] } as u64;
+    let d3 = if c1[2] > c2[2] { c1[2] - c2[2] } else { c2[2] - c1[2] } as u64;
+    ((d1 * d1 + d2 * d2 + d3 * d3) as f64).sqrt() as u8
+}
+
 fn main() {
     let matches = App::new("Theme palette")
         .version(crate_version!())
@@ -55,5 +63,27 @@ fn main() {
         }
         println!("{:>2}: #{:02x}{:02x}{:02x}",
                  rank + 1, color.0[0], color.0[1], color.0[2]);
+    }
+
+    let mut group_count: HashMap<image::Rgb<u8>, usize> = HashMap::new();
+    'outer: for &(color, cnt) in count.iter() {
+        for (group, val) in group_count.iter_mut() {
+            if dist(color, group) < 32 {
+                *val += cnt;
+                continue 'outer;
+            }
+        }
+        group_count.insert(*color, *cnt);
+    }
+    let mut grouped = group_count.iter()
+        .collect::<Vec<(&image::Rgb<u8>, &usize)>>();
+    grouped.sort_by_key(|&(_, v)| v);
+    println!("Grouped most common colors");
+    for (rank, color) in grouped.iter().rev().enumerate() {
+        if rank >= 8 {
+            break;
+        }
+        println!("{:>2}: #{:02x}{:02x}{:02x} {}",
+                 rank + 1, color.0[0], color.0[1], color.0[2], color.1);
     }
 }
