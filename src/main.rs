@@ -43,10 +43,10 @@ fn main() {
     let mut hist = HashMap::new();
     for (_, _, pixel) in img.pixels() {
         let pixel = pixel.to_rgb();
-        let d = hist.entry(pixel).or_insert(0 as u8);
+        let d = hist.entry(pixel).or_insert(0 as usize);
         *d += 1;
     }
-    let mut count = hist.iter().collect::<Vec<(&image::Rgb<u8>, &u8)>>();
+    let mut count = hist.iter().collect::<Vec<(&image::Rgb<u8>, &usize)>>();
     count.sort_by_key(|&(_k, v)| v);
     println!("Most common colors");
     for (rank, color) in count.iter().rev().enumerate() {
