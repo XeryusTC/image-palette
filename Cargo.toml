@@ -1,0 +1,9 @@
+[package]
+name = "theme-palette"
+version = "0.1.0"
+authors = ["Xeryus Stokkel <armadillo@onenetbeyond.org>"]
+description = "Tool to extract dominant colors from image to create palette for WM theme"
+
+[dependencies]
+image = "0.19"
+clap = "2.31.2"
