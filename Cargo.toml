@@ -7,3 +7,4 @@ description = "Tool to extract dominant colors from image to create palette for 
 [dependencies]
 image = "0.19"
 clap = "2.31.2"
+rand = "0.4.0"
