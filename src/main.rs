@@ -46,28 +46,25 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
         }
 
         // Calculate new centers
-        let mut new_centers: Vec<[u64; 3]> = Vec::with_capacity(centers.len());
+        let mut center_totals: Vec<[u64; 3]> = Vec::with_capacity(clusters);
+        let mut sizes = Vec::with_capacity(clusters);
         for _ in 0..clusters {
-            new_centers.push([0, 0, 0]);
+            center_totals.push([0, 0, 0]);
+            sizes.push(0);
         }
         for (i, pixel) in img.pixels().enumerate() {
-            new_centers[labels[i]][0] += pixel[0] as u64;
-            new_centers[labels[i]][1] += pixel[1] as u64;
-            new_centers[labels[i]][2] += pixel[2] as u64;
+            center_totals[labels[i]][0] += pixel[0] as u64;
+            center_totals[labels[i]][1] += pixel[1] as u64;
+            center_totals[labels[i]][2] += pixel[2] as u64;
+            sizes[labels[i]] += 1;
         }
-        for idx in 0..new_centers.len() {
-            let size = labels.iter().filter(|l| **l == idx).count() as u64;
-            assert!(size != 0);
-            if size != 0 {
-                new_centers[idx][0] /= size;
-                new_centers[idx][1] /= size;
-                new_centers[idx][2] /= size;
-            }
-        }
-        for idx in 0..centers.len() {
-            centers[idx] = image::Rgb { data: [new_centers[idx][0] as u8,
-                            new_centers[idx][1] as u8,
-                            new_centers[idx][2] as u8]};
+        for i in 0..clusters {
+            assert!(sizes[i] != 0, "A cluster is empty, please try again");
+            centers[i] = image::Rgb { data: [
+                (center_totals[i][0] / sizes[i]) as u8,
+                (center_totals[i][1] / sizes[i]) as u8,
+                (center_totals[i][2] / sizes[i]) as u8
+            ]};
         }
         stable = labels == old_labels;
     }
@@ -129,15 +126,6 @@ fn main() {
     }
     let mut count = hist.iter().collect::<Vec<(&image::Rgb<u8>, &usize)>>();
     count.sort_by_key(|&(_k, v)| v);
-    println!("Most common colors");
-    for (rank, color) in count.iter().rev().enumerate() {
-        if rank >= results {
-            break;
-        }
-        println!("{:>2}: #{:02x}{:02x}{:02x}",
-                 rank + 1, color.0[0], color.0[1], color.0[2]);
-    }
-
     let mut group_count: HashMap<image::Rgb<u8>, usize> = HashMap::new();
     'outer: for &(color, cnt) in count.iter() {
         for (group, val) in group_count.iter_mut() {
