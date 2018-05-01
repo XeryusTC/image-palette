@@ -10,6 +10,7 @@ use image::Pixel;
 use rand::thread_rng;
 use rand::seq::sample_iter;
 use std::collections::HashMap;
+use std::cmp;
 
 fn dist(c1: &image::Rgb<u8>, c2: &image::Rgb<u8>) -> u64
 {
@@ -24,28 +25,16 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
     let mut centers = sample_iter(&mut rng, img.pixels(), clusters).unwrap()
         .iter().map(|&x| x.clone()).collect::<Vec<image::Rgb<u8>>>();
     let mut labels = Vec::with_capacity((img.width() * img.height()) as usize);
-    let mut old_labels;
-    let mut stable = false;
+    let mut cur_dist: u64;
+    let stop_crit = (cmp::max(img.width(), img.height()) as f64).sqrt();
+    println!("Stop criterium: {}", stop_crit);
 
     for _ in 0..labels.capacity() {
         labels.push(0);
     }
 
-    while !stable {
-        old_labels = labels.clone();
+    loop {
         // Assign clusters
-        for (i, pixel) in img.pixels().enumerate() {
-            let mut cur_dist = u64::max_value();
-            for c in 0..clusters {
-                let d = dist(&centers[c], pixel);
-                if d <= cur_dist {
-                    labels[i] = c;
-                    cur_dist = d;
-                }
-            }
-        }
-
-        // Calculate new centers
         let mut center_totals: Vec<[u64; 3]> = Vec::with_capacity(clusters);
         let mut sizes = Vec::with_capacity(clusters);
         for _ in 0..clusters {
@@ -53,11 +42,22 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
             sizes.push(0);
         }
         for (i, pixel) in img.pixels().enumerate() {
-            center_totals[labels[i]][0] += pixel[0] as u64;
-            center_totals[labels[i]][1] += pixel[1] as u64;
-            center_totals[labels[i]][2] += pixel[2] as u64;
-            sizes[labels[i]] += 1;
+            cur_dist = u64::max_value();
+            for c in 0..clusters {
+                let d = dist(&centers[c], pixel);
+                if d <= cur_dist {
+                    labels[i] = c;
+                    cur_dist = d;
+                    center_totals[c][0] += pixel[0] as u64;
+                    center_totals[c][1] += pixel[1] as u64;
+                    center_totals[c][2] += pixel[2] as u64;
+                    sizes[c] += 1;
+                }
+            }
         }
+
+        // Calculate new centers
+        let old_centers = centers.clone();
         for i in 0..clusters {
             assert!(sizes[i] != 0, "A cluster is empty, please try again");
             centers[i] = image::Rgb { data: [
@@ -66,7 +66,11 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
                 (center_totals[i][2] / sizes[i]) as u8
             ]};
         }
-        stable = labels == old_labels;
+        let delta: u64 = centers.iter().zip(old_centers.iter())
+            .map(|(n, o)| dist(n, o)).sum();
+        if delta as f64 <= stop_crit {
+            break;
+        }
     }
     centers
 }
