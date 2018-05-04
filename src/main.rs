@@ -50,12 +50,12 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
                 if d <= cur_dist {
                     labels[i] = c;
                     cur_dist = d;
-                    center_totals[c][0] += pixel[0] as u64;
-                    center_totals[c][1] += pixel[1] as u64;
-                    center_totals[c][2] += pixel[2] as u64;
-                    sizes[c] += 1;
                 }
             }
+            center_totals[labels[i]][0] += pixel[0] as u64;
+            center_totals[labels[i]][1] += pixel[1] as u64;
+            center_totals[labels[i]][2] += pixel[2] as u64;
+            sizes[labels[i]] += 1;
         }
 
         // Calculate new centers
