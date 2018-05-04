@@ -5,12 +5,14 @@ extern crate rand;
 
 use clap::{App, Arg};
 
-use image::GenericImage;
-use image::Pixel;
+use image::{ImageBuffer, Rgb};
 use rand::thread_rng;
 use rand::seq::sample_iter;
-use std::collections::HashMap;
 use std::cmp;
+use std::collections::HashMap;
+use std::fs::File;
+use std::sync::mpsc;
+use std::thread;
 
 fn dist(c1: &image::Rgb<u8>, c2: &image::Rgb<u8>) -> u64
 {
@@ -150,6 +152,25 @@ fn main() {
                  rank + 1, color.0[0], color.0[1], color.0[2]);
     }
 
+    // Save image of cluster by color groups
+    let (tx, rx) = mpsc::channel();
+    let group_save = thread::spawn(move || {
+        let (mut img, grouped): (ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<Rgb<u8>>)
+                                 = rx.recv().unwrap();
+        for pixel in img.pixels_mut() {
+            for group in grouped.iter() {
+                if dist(pixel, &group) < distance {
+                    *pixel = *group;
+                }
+            }
+        }
+        let ref mut fout = File::create("grouped.png").unwrap();
+        image::ImageRgb8(img).write_to(fout, image::PNG).unwrap();
+        println!("Saved grouped.png");
+    });
+    let grouped = grouped.iter().map(|&(&c, _)| c).collect::<Vec<Rgb<u8>>>();
+    tx.send((img.clone(), grouped.clone())).unwrap();
+
     // Find most often used by k-means
     println!("Grouped by k-means clustering");
     let groups = kmeans(&img, results);
@@ -160,4 +181,29 @@ fn main() {
         println!("{:>2}: #{:02x}{:02x}{:02x}",
                  rank + 1, color[0], color[1], color[2]);
     }
+
+    // Save image of kmeans clustering
+    let (tx, rx) = mpsc::channel();
+    let kmeans_save = thread::spawn(move || {
+        let (mut img, groups): (ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<Rgb<u8>>)
+                                = rx.recv().unwrap();
+        for pixel in img.pixels_mut() {
+            let mut min_dist = std::u64::MAX;
+            let mut best = 0;
+            for (i, center) in groups.iter().enumerate() {
+                if dist(pixel, center) < min_dist {
+                    min_dist = dist(pixel, center);
+                    best = i;
+                }
+            }
+            *pixel = groups[best];
+        }
+        let ref mut fout = File::create("kmeans.png").unwrap();
+        image::ImageRgb8(img).write_to(fout, image::PNG).unwrap();
+        println!("Saved kmeans.png");
+    });
+    tx.send((img.clone(), groups)).unwrap();
+
+    group_save.join().unwrap();
+    kmeans_save.join().unwrap();
 }
