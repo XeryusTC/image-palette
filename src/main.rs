@@ -100,16 +100,15 @@ fn main() {
 
     let image_name = matches.value_of("IMAGE").unwrap();
     let results = value_t!(matches, "results", usize).unwrap();
-    let distance = value_t!(matches, "group_distance", u8).unwrap();
+    let distance = value_t!(matches, "group_distance", u64).unwrap();
     println!("Loading {}...", image_name);
-    let img = image::open(image_name).unwrap();
+    let img = image::open(image_name).unwrap().to_rgb();
 
     // Calculate mean
     let mut red: u64 = 0;
     let mut green: u64 = 0;
     let mut blue: u64 = 0;
-    for (_, _, pixel) in img.pixels() {
-        let pixel = pixel.to_rgb();
+    for &pixel in img.pixels() {
         red += pixel[0] as u64;
         green += pixel[1] as u64;
         blue += pixel[2] as u64;
@@ -123,8 +122,7 @@ fn main() {
 
     // Calculate most often used
     let mut hist = HashMap::new();
-    for (_, _, pixel) in img.pixels() {
-        let pixel = pixel.to_rgb();
+    for &pixel in img.pixels() {
         let d = hist.entry(pixel).or_insert(0 as usize);
         *d += 1;
     }
@@ -133,7 +131,7 @@ fn main() {
     let mut group_count: HashMap<image::Rgb<u8>, usize> = HashMap::new();
     'outer: for &(color, cnt) in count.iter() {
         for (group, val) in group_count.iter_mut() {
-            if dist(color, group) < distance as u64 {
+            if dist(color, group) < distance {
                 *val += cnt;
                 continue 'outer;
             }
@@ -154,7 +152,7 @@ fn main() {
 
     // Find most often used by k-means
     println!("Grouped by k-means clustering");
-    let groups = kmeans(&img.to_rgb(), results);
+    let groups = kmeans(&img, results);
     for (rank, color) in groups.iter().enumerate() {
         if rank >= results {
             break;
