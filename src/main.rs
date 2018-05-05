@@ -6,8 +6,7 @@ extern crate rand;
 use clap::{App, Arg};
 
 use image::{ImageBuffer, Rgb};
-use rand::thread_rng;
-use rand::seq::sample_iter;
+use rand::{Rng, thread_rng};
 use std::cmp;
 use std::collections::HashMap;
 use std::fs::File;
@@ -22,10 +21,10 @@ fn dist(c1: &image::Rgb<u8>, c2: &image::Rgb<u8>) -> u64
     ((d1 * d1 + d2 * d2 + d3 * d3) as f64).sqrt() as u64
 }
 
+#[allow(non_snake_case)]
 fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
     let mut rng = thread_rng();
-    let mut centers = sample_iter(&mut rng, img.pixels(), clusters).unwrap()
-        .iter().map(|&x| x.clone()).collect::<Vec<image::Rgb<u8>>>();
+    let mut centers = Vec::with_capacity(clusters);
     let mut labels = Vec::with_capacity((img.width() * img.height()) as usize);
     let mut cur_dist: u64;
     let stop_crit = (cmp::max(img.width(), img.height()) as f64).sqrt();
@@ -35,6 +34,37 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
         labels.push(0);
     }
 
+    // K-means++ initialization
+    println!("Selecting initial clusters");
+    let mut D: Vec<u64> = Vec::with_capacity(labels.len());
+    for _ in 0..labels.capacity() {
+        D.push(0);
+    }
+    centers.push(*img.get_pixel(rng.gen_range(0, img.width()),
+                                rng.gen_range(0, img.height())));
+    for _ in 0..(clusters - 1) {
+        for (i, pixel) in img.pixels().enumerate() {
+            D[i] = dist(&centers[0], pixel);
+            for c in 1..centers.len() {
+                let d = dist(&centers[c], pixel);
+                if d * d < D[i] {
+                    D[i] = d * d;
+                }
+            }
+        }
+        let p = rng.gen_range(0, D.iter().sum());
+        let mut sofar = 0;
+        for (_, (d, pixel)) in D.iter().zip(img.pixels()).enumerate() {
+            if p < sofar + d {
+                centers.push(*pixel);
+                break;
+            } else {
+                sofar += d;
+            }
+        }
+    }
+
+    println!("Starting k-means training");
     loop {
         // Assign clusters
         let mut center_totals: Vec<[u64; 3]> = Vec::with_capacity(clusters);
@@ -61,7 +91,9 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
         // Calculate new centers
         let old_centers = centers.clone();
         for i in 0..clusters {
-            assert!(sizes[i] != 0, "A cluster is empty, please try again");
+            if sizes[i] == 0 {
+                continue;
+            }
             centers[i] = image::Rgb { data: [
                 (center_totals[i][0] / sizes[i]) as u8,
                 (center_totals[i][1] / sizes[i]) as u8,
@@ -172,8 +204,9 @@ fn main() {
     tx.send((img.clone(), grouped.clone())).unwrap();
 
     // Find most often used by k-means
-    println!("Grouped by k-means clustering");
+    println!("Starting k-means clustering");
     let groups = kmeans(&img, results);
+    println!("Grouped by k-means clustering");
     for (rank, color) in groups.iter().enumerate() {
         if rank >= results {
             break;
