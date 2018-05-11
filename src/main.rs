@@ -65,10 +65,11 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
     }
 
     println!("Starting k-means training");
+    let mut sizes;
     loop {
         // Assign clusters
         let mut center_totals: Vec<[u64; 3]> = Vec::with_capacity(clusters);
-        let mut sizes = Vec::with_capacity(clusters);
+        sizes = Vec::with_capacity(clusters);
         for _ in 0..clusters {
             center_totals.push([0, 0, 0]);
             sizes.push(0);
@@ -106,7 +107,13 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
             break;
         }
     }
-    centers
+    // Sort clusters by size
+    let mut sorted = centers.iter().zip(sizes.iter())
+        .collect::<Vec<(&Rgb<u8>, &u64)>>();
+    sorted.sort_by_key(|&(_c, s)| s);
+    let (clusters, _): (Vec<Rgb<u8>>, Vec<u64>) =
+                         sorted.iter().rev().cloned().unzip();
+    clusters
 }
 
 fn main() {
