@@ -13,6 +13,9 @@ use std::fs::File;
 use std::sync::mpsc;
 use std::thread;
 
+const COLOR_BLOCK_WIDTH:  u32 = 25;
+const COLOR_BLOCK_HEIGHT: u32 = 50;
+
 fn dist(c1: &image::Rgb<u8>, c2: &image::Rgb<u8>) -> u64
 {
     let d1 = if c1[0] > c2[0] { c1[0] - c2[0] } else { c2[0] - c1[0] } as u64;
@@ -114,6 +117,17 @@ fn kmeans(img: &image::RgbImage, clusters: usize) -> Vec<image::Rgb<u8>> {
     let (clusters, _): (Vec<Rgb<u8>>, Vec<u64>) =
                          sorted.iter().rev().cloned().unzip();
     clusters
+}
+
+fn draw_rect(imgbuf: &mut image::ImageBuffer<Rgb<u8>, Vec<u8>>,
+             color: &Rgb<u8>, x1: u32, y1: u32, x2: u32, y2: u32)
+{
+    for x in x1..x2 {
+        for y in y1..y2 {
+            let mut pixel = imgbuf.get_pixel_mut(x, y);
+            *pixel = *color;
+        }
+    }
 }
 
 fn main() {
@@ -242,8 +256,38 @@ fn main() {
         image::ImageRgb8(img).write_to(fout, image::PNG).unwrap();
         println!("Saved kmeans.png");
     });
-    tx.send((img.clone(), groups)).unwrap();
+    tx.send((img.clone(), groups.clone())).unwrap();
+
+    // Save image with colors
+    // zip is used instead of enumerate to keep casts low
+    let (tx, rx) = mpsc::channel();
+    let colors_save = thread::spawn(move || {
+        let (groups, clusters): (Vec<Rgb<u8>>, Vec<Rgb<u8>>)
+                                 = rx.recv().unwrap();
+        let mut imgbuf = image::ImageBuffer::new(
+            results as u32 * COLOR_BLOCK_WIDTH,
+            2*COLOR_BLOCK_HEIGHT);
+        for (group, i) in groups.iter().zip(0..results as u32) {
+            draw_rect(&mut imgbuf, &group,
+                      i*COLOR_BLOCK_WIDTH,
+                      0,
+                      (i+1)*COLOR_BLOCK_WIDTH,
+                      COLOR_BLOCK_HEIGHT);
+        }
+        for (group, i) in clusters.iter().zip(0..results as u32) {
+            draw_rect(&mut imgbuf, group,
+                      i*COLOR_BLOCK_WIDTH,
+                      COLOR_BLOCK_HEIGHT,
+                      (i+1)*COLOR_BLOCK_WIDTH,
+                      2*COLOR_BLOCK_HEIGHT);
+        }
+        let ref mut fout = File::create("ranks.png").unwrap();
+        image::ImageRgb8(imgbuf).write_to(fout, image::PNG).unwrap();
+        println!("saved ranks.png");
+    });
+    tx.send((grouped.clone(), groups.clone())).unwrap();
 
     group_save.join().unwrap();
     kmeans_save.join().unwrap();
+    colors_save.join().unwrap();
 }
